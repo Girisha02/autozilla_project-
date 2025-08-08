@@ -15,7 +15,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   final ImagePicker _picker = ImagePicker();
-  File? _imageFile;
+  final List<File> _imageFiles = [];
 
   @override
   void initState() {
@@ -38,7 +38,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     await _initializeControllerFuture;
     final image = await _controller!.takePicture();
     setState(() {
-      _imageFile = File(image.path);
+      _imageFiles.add(File(image.path));
     });
   }
 
@@ -46,7 +46,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
       setState(() {
-        _imageFile = File(picked.path);
+        _imageFiles.add(File(picked.path));
       });
     }
   }
@@ -64,25 +64,72 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       body: Column(
         children: [
           Expanded(
-            child:
-                _imageFile != null
-                    ? Image.file(
-                      _imageFile!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    )
-                    : FutureBuilder(
-                      future: _initializeControllerFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done) {
-                          return CameraPreview(_controller!);
-                        } else {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
+            child: Column(
+              children: [
+                // Show captured images at the top
+                if (_imageFiles.isNotEmpty) ...[
+                  SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _imageFiles.length,
+                      itemBuilder: (context, index) {
+                        return Container(
+                          margin: const EdgeInsets.all(8.0),
+                          child: Stack(
+                            children: [
+                              Image.file(
+                                _imageFiles[index],
+                                fit: BoxFit.cover,
+                                width: 160,
+                                height: 100,
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _imageFiles.removeAt(index);
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
                       },
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // Show camera preview below
+                Expanded(
+                  child: FutureBuilder(
+                    future: _initializeControllerFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done) {
+                        return CameraPreview(_controller!);
+                      } else {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -99,8 +146,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
               ),
               ElevatedButton.icon(
                 onPressed: () {
-                  if (_imageFile != null) {
-                    Navigator.pop(context, _imageFile);
+                  if (_imageFiles.isNotEmpty) {
+                    Navigator.pop(context, _imageFiles);
                   }
                 },
                 icon: const Icon(Icons.check),

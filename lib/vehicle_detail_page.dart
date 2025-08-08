@@ -1,8 +1,8 @@
-/// ✅ vehicle_detail_page.dart
+// vehicle_detail_page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '/camera/camera_capture_screen.dart';
-import 'vehicle_details_summary_page.dart'; // <-- Added import
 
 class VehicleDetailPage extends StatefulWidget {
   const VehicleDetailPage({super.key});
@@ -22,25 +22,59 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
   final List<String> directions = ['Front', 'Rear', 'Left', 'Right'];
   final List<String> languages = ['English', 'Hindi', 'Telugu', 'Tamil'];
 
-  Map<String, File?> capturedImages = {
-    'Front': null,
-    'Rear': null,
-    'Left': null,
-    'Right': null,
+  Map<String, List<File>> capturedImages = {
+    'Front': [],
+    'Rear': [],
+    'Left': [],
+    'Right': [],
   };
 
   Future<void> _openCameraCapture(String direction) async {
-    final imageFile = await Navigator.push<File?>(
+    final imageFiles = await Navigator.push<List<File>>(
       context,
       MaterialPageRoute(
         builder: (_) => CameraCaptureScreen(direction: direction),
       ),
     );
-    if (imageFile != null) {
+    if (imageFiles != null && imageFiles.isNotEmpty) {
       setState(() {
-        capturedImages[direction] = imageFile;
+        capturedImages[direction] = imageFiles;
       });
     }
+  }
+
+  void _showImagePreview(BuildContext context, File imageFile) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppBar(
+                  title: const Text('Image Preview'),
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: InteractiveViewer(
+                    child: Image.file(imageFile, fit: BoxFit.contain),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _onSaveAndNext() {
@@ -56,18 +90,22 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (_) => VehicleDetailsSummaryPage(
-              customerName: name,
-              phoneNumber: phone,
-              vehicleType: vehicleType,
-              preferredLanguage: lang,
-            ),
-      ),
-    );
+    try {
+      context.push(
+        '/vehicle-details-summary',
+        extra: {
+          'customerName': name,
+          'phoneNumber': phone,
+          'vehicleType': vehicleType,
+          'preferredLanguage': lang,
+          'capturedImages': capturedImages,
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Navigation error: $e')));
+    }
   }
 
   @override
@@ -133,19 +171,68 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
             ),
             const SizedBox(height: 20),
             ...directions.map((dir) {
-              final file = capturedImages[dir];
-              return file != null
+              final files = capturedImages[dir] ?? [];
+              return files.isNotEmpty
                   ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('$dir Image:'),
+                      Text('$dir Images (${files.length}):'),
                       const SizedBox(height: 5),
-                      Image.file(file, height: 150, fit: BoxFit.cover),
+                      SizedBox(
+                        height: 150,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: files.length,
+                          itemBuilder: (context, index) {
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              child: Stack(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      _showImagePreview(context, files[index]);
+                                    },
+                                    child: Image.file(
+                                      files[index],
+                                      height: 150,
+                                      width: 200,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          files.removeAt(index);
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                       const SizedBox(height: 10),
                     ],
                   )
                   : const SizedBox.shrink();
-            }).toList(),
+            }),
             Center(
               child: ElevatedButton(
                 onPressed: _onSaveAndNext,

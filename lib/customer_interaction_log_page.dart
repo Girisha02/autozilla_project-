@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
-import 'issue_categorization_page.dart'; // ✅ Import the next page
+import 'package:go_router/go_router.dart';
+import 'dart:io';
 
 class CustomerInteractionLogPage extends StatefulWidget {
   final String customerName;
+  final Map<String, List<File>>? capturedImages;
 
-  const CustomerInteractionLogPage({super.key, required this.customerName});
+  const CustomerInteractionLogPage({
+    super.key,
+    required this.customerName,
+    this.capturedImages,
+  });
 
   @override
   State<CustomerInteractionLogPage> createState() =>
@@ -57,11 +63,14 @@ class _CustomerInteractionLogPageState
     }
 
     // ✅ Optionally log the collected info (for now we're just navigating)
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const IssueCategorizationPage(),
-      ),
+    context.push(
+      '/issue-categorization',
+      extra: {
+        'capturedImages': widget.capturedImages,
+        'vehicleRegNo': 'ABC 1234', // This should come from previous pages
+        'vehicleModel': 'Example Car', // This should come from previous pages
+        'claimNo': 'CL123456789', // This should come from previous pages
+      },
     );
   }
 
@@ -73,7 +82,7 @@ class _CustomerInteractionLogPageState
         backgroundColor: Colors.blue,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(
@@ -96,14 +105,13 @@ class _CustomerInteractionLogPageState
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedRepairType,
-              items: _repairOptions
-                  .map(
-                    (type) => DropdownMenuItem(
-                      value: type,
-                      child: Text(type),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  _repairOptions
+                      .map(
+                        (type) =>
+                            DropdownMenuItem(value: type, child: Text(type)),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _selectedRepairType = value),
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -122,7 +130,7 @@ class _CustomerInteractionLogPageState
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
               child: Text(
                 _selectedDate != null
-                    ? 'Date: ${_selectedDate!.toLocal()}'.split(' ')[0]
+                    ? 'Date: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
                     : 'Select Date',
               ),
             ),
@@ -130,10 +138,13 @@ class _CustomerInteractionLogPageState
 
             DropdownButtonFormField<String>(
               value: _selectedTimeSlot,
-              items: _timeSlots
-                  .map((slot) =>
-                      DropdownMenuItem(value: slot, child: Text(slot)))
-                  .toList(),
+              items:
+                  _timeSlots
+                      .map(
+                        (slot) =>
+                            DropdownMenuItem(value: slot, child: Text(slot)),
+                      )
+                      .toList(),
               onChanged: (value) {
                 setState(() {
                   _selectedTimeSlot = value;

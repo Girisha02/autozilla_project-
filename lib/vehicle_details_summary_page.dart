@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/damage_assesment_page.dart';
+import 'package:go_router/go_router.dart';
+import 'dart:io';
 
 class VehicleDetailsSummaryPage extends StatefulWidget {
   final String customerName;
   final String phoneNumber;
   final String vehicleType;
   final String preferredLanguage;
+  final bool isExistingSurvey;
+  final String? vehicleYear;
+  final String? vehicleId;
+  final Map<String, List<File>>? capturedImages;
 
   const VehicleDetailsSummaryPage({
     super.key,
@@ -13,6 +18,10 @@ class VehicleDetailsSummaryPage extends StatefulWidget {
     required this.phoneNumber,
     required this.vehicleType,
     required this.preferredLanguage,
+    this.isExistingSurvey = false,
+    this.vehicleYear,
+    this.vehicleId,
+    this.capturedImages,
   });
 
   @override
@@ -21,21 +30,31 @@ class VehicleDetailsSummaryPage extends StatefulWidget {
 }
 
 class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
-  final TextEditingController _vehicleNumberController = TextEditingController();
+  final TextEditingController _vehicleNumberController =
+      TextEditingController();
   final TextEditingController _vehicleMakeController = TextEditingController();
-  final TextEditingController _odometerReadingController = TextEditingController();
+  final TextEditingController _odometerReadingController =
+      TextEditingController();
 
   String? _selectedYear;
   String? _selectedModel;
 
   final Map<String, List<String>> _yearOptions = {
-    'Car': ['2020', '2021', '2022', '2023', '2024'],
+    'Car': ['2019', '2020', '2021', '2022', '2023', '2024'],
     'Bike': ['2018', '2019', '2020', '2021', '2022'],
     'Truck': ['2015', '2016', '2017', '2018', '2019'],
   };
 
   final Map<String, List<String>> _modelOptions = {
-    'Car': ['Swift', 'i20', 'Verna', 'Creta'],
+    'Car': [
+      'Swift',
+      'i20',
+      'Verna',
+      'Creta',
+      'Tesla Model 3',
+      'Mercedes-Benz GLE',
+      'BMW X5',
+    ],
     'Bike': ['Pulsar', 'Apache', 'FZ', 'Duke'],
     'Truck': ['Eicher', 'Tata', 'Ashok Leyland'],
   };
@@ -57,6 +76,18 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.isExistingSurvey) {
+      // Pre-fill data for existing survey
+      _vehicleNumberController.text = widget.vehicleId ?? '';
+      _vehicleMakeController.text = widget.vehicleType;
+      _selectedYear = widget.vehicleYear;
+      _selectedModel = widget.vehicleType;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final vehicleType = normalizeVehicleType(widget.vehicleType);
     final modelList = _modelOptions[vehicleType] ?? [];
@@ -64,11 +95,15 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vehicle Details Summary'),
+        title: Text(
+          widget.isExistingSurvey
+              ? 'Existing Vehicle Details'
+              : 'Vehicle Details Summary',
+        ),
         backgroundColor: Colors.blue,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(
@@ -76,30 +111,72 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Vehicle Type: $vehicleType", style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (widget.isExistingSurvey) ...[
+              // Customer info section for existing surveys
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Customer Information',
+                      style: TextStyle(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Name: ${widget.customerName}'),
+                    Text('Phone: ${widget.phoneNumber}'),
+                    Text('Language: ${widget.preferredLanguage}'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            Text(
+              "Vehicle Type: ${widget.vehicleType}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
 
             buildTextField(
               controller: _vehicleNumberController,
               label: 'Vehicle Number',
               hint: 'Enter vehicle number (e.g. AB12C3456)',
+              enabled: !widget.isExistingSurvey,
             ),
             buildTextField(
               controller: _vehicleMakeController,
               label: 'Vehicle Make',
               hint: 'Enter make (e.g. Ford)',
+              enabled: !widget.isExistingSurvey,
             ),
             buildDropdown(
               label: 'Vehicle Model',
               value: _selectedModel,
               items: modelList,
-              onChanged: (value) => setState(() => _selectedModel = value),
+              onChanged:
+                  widget.isExistingSurvey
+                      ? (value) {}
+                      : (value) => setState(() => _selectedModel = value),
             ),
             buildDropdown(
               label: 'Year',
               value: _selectedYear,
               items: yearList,
-              onChanged: (value) => setState(() => _selectedYear = value),
+              onChanged:
+                  widget.isExistingSurvey
+                      ? (value) {}
+                      : (value) => setState(() => _selectedYear = value),
             ),
             buildTextField(
               controller: _odometerReadingController,
@@ -118,9 +195,9 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
                     vertical: 16.0,
                   ),
                 ),
-                child: const Text(
-                  'Save and Next',
-                  style: TextStyle(fontSize: 16, color: Colors.white),
+                child: Text(
+                  widget.isExistingSurvey ? 'Next' : 'Save and Next',
+                  style: const TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),
             ),
@@ -143,11 +220,14 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
     final jobId = DateTime.now().millisecondsSinceEpoch.toString();
     final car = "$_selectedYear ${_vehicleMakeController.text} $_selectedModel";
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DamageAssessmentPage(jobId: jobId, car: car),
-      ),
+    context.push(
+      '/damage-assessment',
+      extra: {
+        'jobId': jobId,
+        'car': car,
+        'customerName': widget.customerName,
+        'capturedImages': widget.capturedImages,
+      },
     );
   }
 
@@ -156,12 +236,14 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
     required String label,
     required String hint,
     TextInputType keyboardType = TextInputType.text,
+    bool enabled = true,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        enabled: enabled,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -191,7 +273,10 @@ class _VehicleDetailsSummaryPageState extends State<VehicleDetailsSummaryPage> {
           ),
         ),
         value: value,
-        items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+        items:
+            items
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
         onChanged: onChanged,
       ),
     );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/vehicle_detail_page.dart' as vehicle;
+import 'package:go_router/go_router.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -36,12 +36,7 @@ class WelcomePage extends StatelessWidget {
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const vehicle.VehicleDetailPage(),
-                        ),
-                      );
+                      context.push('/vehicle-detail');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
@@ -51,7 +46,7 @@ class WelcomePage extends StatelessWidget {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      // TODO: Implement View Existing Surveys
+                      context.push('/view-existing-surveys');
                     },
                     child: const Text('View Existing Surveys'),
                   ),

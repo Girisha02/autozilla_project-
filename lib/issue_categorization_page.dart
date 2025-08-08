@@ -1,8 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'upload_data_page.dart'; // Ensure this file exists with correct constructor
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 class IssueCategorizationPage extends StatefulWidget {
-  const IssueCategorizationPage({super.key});
+  final Map<String, List<File>>? capturedImages;
+  final String? vehicleRegNo;
+  final String? vehicleModel;
+  final String? claimNo;
+
+  const IssueCategorizationPage({
+    super.key,
+    this.capturedImages,
+    this.vehicleRegNo,
+    this.vehicleModel,
+    this.claimNo,
+  });
 
   @override
   State<IssueCategorizationPage> createState() =>
@@ -10,20 +23,22 @@ class IssueCategorizationPage extends StatefulWidget {
 }
 
 class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
+  String? _selectedIssueCategory;
+  String? _selectedSeverity;
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _costController = TextEditingController();
   final TextEditingController _remarksController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
 
-  String? _selectedIssueCategory;
-  String? _selectedSeverity;
-
-  final List<Map<String, dynamic>> _savedIssues = [];
-
-  Map<String, bool> _actions = {
+  final Map<String, bool> _actions = {
     'Replace': false,
     'Repair': false,
-    'No Action': false,
+    'Paint': false,
+    'Clean': false,
   };
+
+  final List<Map<String, dynamic>> _savedIssues = [];
+  final List<File> _capturedPhotos = [];
 
   void _resetForm() {
     setState(() {
@@ -32,8 +47,82 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
       _descriptionController.clear();
       _costController.clear();
       _remarksController.clear();
-      _actions.updateAll((key, value) => false);
+      _actions.forEach((key, value) => _actions[key] = false);
+      _capturedPhotos.clear();
     });
+  }
+
+  Future<void> _capturePhoto() async {
+    try {
+      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      if (photo != null) {
+        setState(() {
+          _capturedPhotos.add(File(photo.path));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error capturing photo: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final XFile? photo = await _picker.pickImage(source: ImageSource.gallery);
+      if (photo != null) {
+        setState(() {
+          _capturedPhotos.add(File(photo.path));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking photo: $e')),
+        );
+      }
+    }
+  }
+
+
+
+  void _showImagePreview(BuildContext context, File imageFile) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppBar(
+                  title: const Text('Image Preview'),
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: InteractiveViewer(
+                    child: Image.file(
+                      imageFile,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _addIssue() {
@@ -41,7 +130,9 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
         _selectedSeverity == null ||
         _descriptionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all mandatory fields")),
+        const SnackBar(
+          content: Text("Please fill in all required fields"),
+        ),
       );
       return;
     }
@@ -54,8 +145,10 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
           _actions.entries.where((e) => e.value).map((e) => e.key).toList(),
       'cost': _costController.text,
       'remarks': _remarksController.text,
-      'photo': 'assets/sample_photo.jpg',
+      'photos': List<File>.from(_capturedPhotos), // Store a copy of File objects
     };
+    
+
 
     setState(() {
       _savedIssues.add(issue);
@@ -78,20 +171,37 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
       return;
     }
 
-    final lastIssue = _savedIssues.last;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => UploadDataPage(
-              category: lastIssue['category'],
-              description: lastIssue['description'],
-              severity: lastIssue['severity'],
-              actionRequired: (lastIssue['actions'] as List<String>).join(", "),
-              photoPath: lastIssue['photo'],
-            ),
-      ),
-    );
+    // Convert all saved issues to a format that can be passed via GoRouter
+    final List<Map<String, dynamic>> convertedIssues = _savedIssues.map((issue) {
+      final actionsList = issue['actions'] as List<dynamic>;
+      final actionRequired = actionsList.map((e) => e.toString()).join(", ");
+      
+      final convertedIssue = {
+        'category': issue['category']?.toString() ?? '',
+        'description': issue['description']?.toString() ?? '',
+        'severity': issue['severity']?.toString() ?? '',
+        'actionRequired': actionRequired,
+        'photos': issue['photos'] as List<dynamic>, // Pass as dynamic to avoid type issues
+        'cost': issue['cost']?.toString() ?? '',
+        'remarks': issue['remarks']?.toString() ?? '',
+      };
+      
+
+      
+      return convertedIssue;
+    }).toList();
+
+    // Combine all captured images
+    final allImages = <String, List<File>>{};
+    if (widget.capturedImages != null) {
+      allImages.addAll(widget.capturedImages!);
+    }
+    allImages['Issues'] = _capturedPhotos;
+
+    context.push('/upload-data', extra: {
+      'allIssues': convertedIssues,
+      'capturedImages': allImages,
+    });
   }
 
   @override
@@ -111,7 +221,7 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
         backgroundColor: Colors.blue,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SafeArea(
@@ -120,9 +230,9 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Vehicle Reg. No. ABC 1234"),
-              const Text("Model: Example Car"),
-              const Text("Claim No: CL123456789"),
+              Text("Vehicle Reg. No. ${widget.vehicleRegNo ?? 'ABC 1234'}"),
+              Text("Model: ${widget.vehicleModel ?? 'Example Car'}"),
+              Text("Claim No: ${widget.claimNo ?? 'CL123456789'}"),
               const SizedBox(height: 20),
               const Text("Issue Category"),
               DropdownButton<String>(
@@ -190,14 +300,83 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
               ),
               const SizedBox(height: 12),
               const Text("Photos"),
-              ElevatedButton.icon(
-                onPressed:
-                    () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Photo upload tapped")),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _capturePhoto,
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text("Camera"),
                     ),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text("Add Photo"),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _pickFromGallery,
+                      icon: const Icon(Icons.photo_library),
+                      label: const Text("Gallery"),
+                    ),
+                  ),
+                ],
               ),
+              if (_capturedPhotos.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Captured Images (${_capturedPhotos.length}):'),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _capturedPhotos.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                                                             child: GestureDetector(
+                                 onTap: () {
+                                   _showImagePreview(context, _capturedPhotos[index]);
+                                 },
+                                 child: Image.file(
+                                   _capturedPhotos[index],
+                                   height: 120,
+                                   width: 160,
+                                   fit: BoxFit.cover,
+                                 ),
+                               ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _capturedPhotos.removeAt(index);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               const Text("Remarks"),
               TextField(
@@ -261,6 +440,27 @@ class _IssueCategorizationPageState extends State<IssueCategorizationPage> {
                       ),
                       Text("Estimated Cost: ₹${issue['cost']}"),
                       Text("Remarks: ${issue['remarks']}"),
+                      if (issue['photo'] != null && issue['photo'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.file(
+                            File(issue['photo']),
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                height: 100,
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: Icon(Icons.photo, color: Colors.grey),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
