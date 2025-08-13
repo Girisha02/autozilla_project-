@@ -5,6 +5,7 @@ Future<void> requestPermissions() async {
   await [
     Permission.camera,
     Permission.storage,
+    Permission.microphone,
     Permission.photos, // iOS only, will be ignored on Android
   ].request();
 }

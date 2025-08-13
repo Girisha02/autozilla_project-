@@ -95,8 +95,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.error,
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(

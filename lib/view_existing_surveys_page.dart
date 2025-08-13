@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class ViewExistingSurveysPage extends StatefulWidget {
   const ViewExistingSurveysPage({super.key});
@@ -13,6 +16,7 @@ class _ViewExistingSurveysPageState extends State<ViewExistingSurveysPage> {
   String? enteredName;
   bool isListening = false;
   final TextEditingController _nameController = TextEditingController();
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
   // Mock data - in real app this would come from a database
   final Map<String, List<Map<String, String>>> _vehicleData = {
@@ -40,21 +44,78 @@ class _ViewExistingSurveysPageState extends State<ViewExistingSurveysPage> {
     ],
   };
 
-  void _startListening() {
-    setState(() {
-      isListening = true;
-    });
-
-    // Simulate voice recognition
-    Future.delayed(const Duration(seconds: 2), () {
+  Future<void> _startListening() async {
+  try {
+    if (isListening) {
+      // Stop recording
+      final String? filePath = await _audioRecorder.stop();
       setState(() {
         isListening = false;
-        // For demo purposes, let's simulate finding "Jane Smith"
-        _nameController.text = 'Jane Smith';
-        _searchForVehicles('jane smith');
       });
+
+      if (filePath != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Recording saved: ${filePath.split('/').last}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      // Start recording
+      final bool hasPermission = await _audioRecorder.hasPermission();
+      if (!hasPermission) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Microphone permission required'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      // Corrected: Pass RecordConfig as the positional argument
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc, // Specify the audio encoder
+          bitRate: 128000, // Bit rate (optional, adjust as needed)
+          sampleRate: 44100, // Sample rate (optional, adjust as needed)
+        ),
+        path: filePath, // Path as a named argument
+      );
+
+      setState(() {
+        isListening = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recording started... Tap again to stop'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    setState(() {
+      isListening = false;
     });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Recording error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
+}
 
   void _searchForVehicles(String name) {
     final normalizedName = name.toLowerCase();
@@ -95,7 +156,7 @@ class _ViewExistingSurveysPageState extends State<ViewExistingSurveysPage> {
                         borderRadius: BorderRadius.circular(12.0),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
+                            color: Colors.black.withOpacity(0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -189,7 +250,7 @@ class _ViewExistingSurveysPageState extends State<ViewExistingSurveysPage> {
                         borderRadius: BorderRadius.circular(12.0),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
+                            color: Colors.black.withOpacity(0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -327,6 +388,7 @@ class _ViewExistingSurveysPageState extends State<ViewExistingSurveysPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 }
